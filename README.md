@@ -5,7 +5,7 @@ routing. Click a point on one map to set a reference height, then switch maps: t
 (jump apex, ledge grab, step-up, or your own) stay put, and every map is coloured by whether it's below the reference,
 within a jump of it, or above.
 
-**Use it:** https://YOUR-NAME.github.io/oot-height-compare/
+**Use it:** https://zkrepps.github.io/oot-height-compare/
 
 ## Getting the maps
 
