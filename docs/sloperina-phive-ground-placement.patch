@@ -1,0 +1,97 @@
+diff --git a/tools/phive.py b/tools/phive.py
+index c396431..d8612d6 100644
+--- a/tools/phive.py
++++ b/tools/phive.py
+@@ -534,6 +534,26 @@ def _decode_layer(data, offset, section_index, info, out):
+                           "extra": extra})
+ 
+ 
++def ground_placements(data, offset, size):
++    """Placement records of the nested ground meshes in one block, or [] if the block isn't one.
++
++    Each record is 11 words (0x2C): scale xyz, three zero words (rotation?), translation xyz, u32 kind (6, 7, 8 seen),
++    u32 0; the block is padded to 0x10. One record = 0x30 block, two = 0x60 (Hyrule Field)."""
++    if size % 0x10 or size < 0x2C:
++        return []
++    out, p, end = [], offset, offset + size
++    while p + 0x2C <= end:
++        f = struct.unpack_from("<9f", data, p)
++        kind, zero = struct.unpack_from("<2I", data, p + 0x24)
++        if not (all(0.001 < abs(v) < 1000 for v in f[0:3]) and f[3:6] == (0.0, 0.0, 0.0) and 0 < kind < 64 and zero == 0):
++            break
++        out.append({"s": f[0:3], "t": f[6:9], "q": (0.0, 0.0, 0.0, 1.0), "kind": kind})
++        p += 0x2C
++    if not out or any(data[p:end].strip(b"\0")):
++        return []
++    return out
++
++
+ def decode_bphsc(data):
+     """A .bphsc -> dict(name, counts, actors, info, materials, layermasks, layers=[...], ground=bphsh dict|None).
+ 
+@@ -561,25 +581,36 @@ def decode_bphsc(data):
+     masks = table(SEC_LAYER_MASKS, "<QQ", n_materials)
+     out = {"name": name, "counts": counts, "actors": actors, "info": info, "materials": materials,
+            "layermasks": masks, "layers": [], "ground": None, "unknown": {}, "other": []}
++    grounds, placements = [], []
+     for section_index, (offset, size) in enumerate(sections):
+         if not size or section_index <= LAST_FIXED_SECTION:
+             continue
+         if is_tagfile(data, offset):
+             _decode_layer(data, offset, section_index, info, out)
+         elif is_phive(data, offset):
+-            out["ground"] = decode_bphsh(data, offset)
+-            out["ground"]["section"] = section_index
+-        elif size == GROUND_PLACEMENT_SIZE:
+-            # placement of the nested ground mesh: scale xyz, pad, then (from +0x18) translation x y z, u32 6
+-            floats = struct.unpack_from("<12f", data, offset)
+-            out["groundXform"] = {"s": floats[0:3], "t": floats[6:9], "q": (0.0, 0.0, 0.0, 1.0)}
++            ground = decode_bphsh(data, offset)
++            ground["section"] = section_index
++            grounds.append(ground)
+         else:
+-            # Not decoded. Section 7 (0x50, zero so far) and a block after the tagfiles that looks like water
+-            # volumes: records starting (0, 0, 1.0?, scale xyz, rotation xyz (radians), translation xyz,
+-            # u32 material 28 = Water, ...) but the record size varies (0x48/0x50) - not worked out.
+-            out["other"].append((section_index, data[offset:offset + size]))
+-    if out["ground"] and "groundXform" in out:
+-        out["ground"]["tris"] = transform(out["ground"]["tris"], out["groundXform"])
++            records = ground_placements(data, offset, size)
++            if records:
++                placements += records
++            else:
++                # Not decoded. Section 7 (0x50, zero so far) and a block after the tagfiles that looks like water
++                # volumes: records starting (0, 0, 1.0?, scale xyz, rotation xyz (radians), translation xyz,
++                # u32 material 28 = Water, ...) but the record size varies (0x48/0x50) - not worked out.
++                out["other"].append((section_index, data[offset:offset + size]))
++    # Pair nested ground meshes with placement records in file order. Most tiles have one of each (a 0x30 block);
++    # Hyrule Field tiles have two ground meshes and one 0x60 block holding two 0x2C records (height-tools patch).
++    for k, ground in enumerate(grounds):
++        if placements:
++            xform = placements[min(k, len(placements) - 1)]
++            ground["tris"] = transform(ground["tris"], xform)
++            ground["xform"] = xform
++    if placements:
++        out["groundXform"] = placements[0]
++    out["grounds"] = grounds
++    out["ground"] = grounds[-1] if grounds else None
+     return out
+ 
+ 
+@@ -788,8 +819,14 @@ def _tile_triangles(sc, everything):
+                     continue
+                 tris.append((a, b, c, {"layer": ("sensor:" if sensor else "") + layer_name, "material": material,
+                                        "hitsPlayer": hit and not sensor, "src": "compound"}))
+-    ground = sc["ground"]
+-    if ground:
++    grounds = sc.get("grounds") or ([sc["ground"]] if sc["ground"] else [])
++    if not everything:
++        # Where several ground meshes share one placement (Hyrule Field: two near-identical versions per tile), keep
++        # the last; meshes placed at different spots (GerudoThiefStage: an 8x8 grid in one tile) all stay.
++        place_of = lambda g: tuple(g["xform"]["t"]) if g.get("xform") else None
++        last = {place_of(g): i for i, g in enumerate(grounds)}
++        grounds = [g for i, g in enumerate(grounds) if last[place_of(g)] == i]
++    for ground in grounds:
+         for a, b, c, tag in ground["tris"]:
+             material = ground["materials"][tag] if tag < len(ground["materials"]) else (0, 0, 0)
+             mask = ground["layermasks"][tag][0] if tag < len(ground["layermasks"]) else ~0
