@@ -65,6 +65,10 @@ Hyrule Field, Kakariko, the dungeons and boss rooms), and runs in a second or tw
 - The **EPD wiki** pages on Bphsh and Common Phive.
 - three.js (MIT), three-mesh-bvh (MIT), zstd-wasm by bokuweb (MIT) around Facebook's zstd (BSD).
 
+## Contributing
+
+Bug reports are welcome; see `CONTRIBUTING.md`. Please never attach game files or extracted maps.
+
 ## License
 
 GPL-3.0 (see `LICENSE`), because the decoder is a port of sloperina's GPL-3.0 tools. Not affiliated with Nintendo.
