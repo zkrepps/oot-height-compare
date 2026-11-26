@@ -7,6 +7,10 @@ within a jump of it, or above.
 
 **Use it:** https://zkrepps.github.io/oot-height-compare/
 
+![Gerudo Fortress coloured against a reference height: blue below it, green within a jump, red above](docs/screenshot.png)
+
+*Gerudo Fortress (adult) after clicking a point at y 141.10 m: blue is below that height, green is within a jump above it, red is more than a jump above. The yellow lines mark the reference and jump-apex heights.*
+
 ## Getting the maps
 
 Click **Open your .nup…** and pick your own dump of the game. The page reads the collision for every map out of it
