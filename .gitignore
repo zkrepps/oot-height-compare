@@ -1,0 +1,12 @@
+# Never commit game files or anything extracted from them
+*.nup
+*.nsp
+*.xci
+*.ohm
+*.ohm.gz
+*.bphsc
+*.zs
+maps/
+out/
+testdata*
+__pycache__/

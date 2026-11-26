@@ -15,6 +15,7 @@
 :root{color-scheme:light dark;--bg:light-dark(#f3f1ea,#0f1311);--panel:light-dark(#fbfaf6,#161b18);--ink:light-dark(#1b1f1c,#e8ebe5);--mute:light-dark(#5d655f,#9aa49c);--line:light-dark(#dcd8cc,#29312c);--gold:#e3b23c;--below:#3d7bd9;--reach:#46b35a;--above:#e0603a;--field:light-dark(#fff,#0f1311)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Hanken Grotesk",system-ui,sans-serif;overflow:hidden}
 .app{display:grid;grid-template-columns:330px minmax(0,1fr);height:100%}
@@ -105,6 +106,9 @@ kbd{font:12px/1 "Hanken Grotesk",sans-serif;border:1px solid var(--line);border-
     <div class="note" id="refSrc"></div>
     <label class="ck"><input type="checkbox" id="clickSets" checked> Clicking the map sets the reference</label>
     <div class="row" style="margin-top:10px"><input id="refName" type="text" placeholder="Name this height, e.g. DMT ledge"><button id="saveRef">Save</button></div>
+    <div class="row" id="refSortRow" hidden><label class="unit" for="refSort">Sort</label>
+      <select id="refSort" style="flex:1"><option value="added">Order saved</option><option value="high">Height, highest first</option>
+        <option value="low">Height, lowest first</option><option value="az">Name, A to Z</option><option value="za">Name, Z to A</option></select></div>
     <ul class="refs" id="refList"></ul>
   </section>
 
@@ -349,8 +353,21 @@ function setRef(y, src) {
   save(); updatePlanes(); renderRefs(); refreshPick();
 }
 $('refY').addEventListener('change', () => { const y = parseFloat($('refY').value); if (!isNaN(y)) setRef(y, 'Typed in'); });
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+const REF_SORTS = {
+  added: () => 0,
+  high: (a, b) => b.y - a.y || byName.compare(a.name, b.name),
+  low: (a, b) => a.y - b.y || byName.compare(a.name, b.name),
+  az: (a, b) => byName.compare(a.name, b.name) || b.y - a.y,
+  za: (a, b) => byName.compare(b.name, a.name) || b.y - a.y,
+};
+$('refSort').value = REF_SORTS[st.refSort] ? st.refSort : 'added';
+$('refSort').onchange = () => { st.refSort = $('refSort').value; save(); renderRefs(); };
 function renderRefs() {
-  $('refList').innerHTML = refs.map((r, i) => `<li class="${Math.abs(r.y - st.ref) < 1e-6 ? 'on' : ''}"><b data-use="${i}" title="Use this height">${esc(r.name)}</b>
+  $('refSortRow').hidden = refs.length < 2;
+  const sort = REF_SORTS[$('refSort').value] || REF_SORTS.added;
+  const rows = refs.map((r, i) => ({ r, i })).sort((a, b) => sort(a.r, b.r) || a.i - b.i);
+  $('refList').innerHTML = rows.map(({ r, i }) => `<li class="${Math.abs(r.y - st.ref) < 1e-6 ? 'on' : ''}"><b data-use="${i}" title="Use this height">${esc(r.name)}</b>
     <span class="num unit">${r.y.toFixed(2)} m</span><button class="x" data-rm="${i}" aria-label="Delete ${esc(r.name)}">✕</button></li>`).join('');
 }
 $('refList').addEventListener('click', e => {
